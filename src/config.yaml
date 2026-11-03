@@ -16,7 +16,7 @@ metadata:
   openGraph:
     site_name: BagiBon
     images:
-      - url: '/og-image.png'
+      - url: 'https://kayzenn123.github.io/agent-tools-bagibon/og-image.png'
         width: 1200
         height: 630
     type: website

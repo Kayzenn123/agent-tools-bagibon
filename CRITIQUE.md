@@ -40,6 +40,12 @@ langsung terlihat <3 detik.
 ## Verifikasi (terverifikasi / belum)
 - [terverifikasi] qa.js exit 0 lokal (4 viewport + reduced-motion + fps4x 60.3)
 - [terverifikasi] Lighthouse via CHROME_PATH=playwright-chromium: mobile 91–99/100/100/100, desktop 100/96/100/100
+- [terbatas] qa.js di URL live: Chromium VM tidak bisa menembus egress proxy
+  (ERR_TUNNEL_CONNECTION_FAILED — keterbatasan VM yang sudah diketahui, sesuai
+  catatan BRIEF). Pengganti setara via curl: HTTP 200, HTML live memuat PATUNGAN,
+  1 h1, marquee, stempel, tanpa double base-prefix; bundle JS AppScript 200 dan
+  memuat state key `bagibon:v1`; og:image kini absolut + base path benar.
+  Bug og:image tanpa base ditemukan & diperbaiki saat cek ini (re-deploy ad29f9f).
 - [terverifikasi] Fungsi inti via skrip Playwright (tambah peserta/item → odometer Rp16.500 & nombok Rp8.250 benar; preset; deep-link round-trip; stempel 5x → pesan muncul)
 - [terverifikasi] Keyboard: semua aksi = button/input asli; focus-visible ada
 - [belum] qa.js di URL live (dijalankan setelah deploy)
