@@ -1,0 +1,70 @@
+site:
+  name: BagiBon
+  site: 'https://kayzenn123.github.io'
+  base: '/agent-tools-bagibon' # no trailing slash
+  trailingSlash: false
+
+# Default SEO metadata
+metadata:
+  title:
+    default: BagiBon — Patungan Bill Makan Bareng ala Buku Arisan
+    template: '%s — BagiBon'
+  description: 'BagiBon: hitung patungan bill makan bareng yang adil per item. 100% client-side, tanpa akun, tanpa server. Buku arisan raksasa milik Bu Bendahara.'
+  robots:
+    index: true
+    follow: true
+  openGraph:
+    site_name: BagiBon
+    images:
+      - url: '/og-image.png'
+        width: 1200
+        height: 630
+    type: website
+  twitter:
+    handle: '@ngoprek.dev'
+    site: '@ngoprek.dev'
+    cardType: summary_large_image
+
+i18n:
+  language: id
+  textDirection: ltr
+
+apps:
+  blog:
+    isEnabled: false
+    postsPerPage: 8
+
+    post:
+      isEnabled: false
+      permalink: '/%slug%' # Variables: %slug%, %year%, %month%, %day%, %hour%, %minute%, %second%, %category%
+      robots:
+        index: false
+
+    list:
+      isEnabled: false
+      pathname: 'blog' # Blog main path, you can change this to "articles" (/articles)
+      robots:
+        index: false
+
+    category:
+      isEnabled: false
+      pathname: 'category' # Tag main path /category/some-category, you can change this to "group" (/group/some-category)
+      robots:
+        index: false
+
+    tag:
+      isEnabled: false
+      pathname: 'tag' # Tag main path /tag/some-tag, you can change this to "topics" (/tag/some-tag)
+      robots:
+        index: false
+
+    isRelatedPostsEnabled: false
+    relatedPostsCount: 4
+
+analytics:
+  vendors:
+    googleAnalytics:
+      id: null # or "G-XXXXXXXXXX"
+
+ui:
+  theme: 'light:only' # Values: "system" | "light" | "dark" | "light:only" | "dark:only"

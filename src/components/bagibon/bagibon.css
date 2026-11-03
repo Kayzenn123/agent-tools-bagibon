@@ -1,0 +1,437 @@
+/* ==========================================================================
+   BagiBon — "Buku Arisan Raksasa" (risograph 2-3 warna)
+   Seed: builds/2026-11-03/seed.json | domain arisan | constraint: TANPA
+   shadow & gradient (bg visual). Satu-satunya gradient yang diizinkan =
+   alpha-mask tak terlihat untuk spotlight (Gerak D).
+   ========================================================================== */
+
+:root {
+  --bg: oklch(0.72 0.146 318);       /* kertas mauve */
+  --surface: oklch(0.60 0.11 318);   /* halaman buku */
+  --text: oklch(0.16 0.03 318);      /* tinta ungu tua */
+  --muted: oklch(0.18 0.04 318);      /* tinta pudar — L0.18 agar ≥4.5:1 di surface(4.56) & bg(7.18) */
+  --accent: oklch(0.73 0.259 78);    /* tinta emas */
+  --accent-2: oklch(0.71 0.227 198); /* tinta biru */
+  --pop: oklch(0.79 0.213 120);      /* hijau stempel */
+  --paper-line: oklch(0.5 0.05 318);
+  --bd: 3px solid var(--text);       /* garis tebal sudut tajam */
+  --bd-thin: 2px solid var(--text);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-jaldi, 'Jaldi', sans-serif);
+  font-size: 1.125rem;
+  line-height: 1.6;
+  overflow-x: clip;
+}
+
+.font-display { font-family: var(--font-caveat, 'Caveat', cursive); }
+.font-accent  { font-family: var(--font-playwrite-cu, 'Playwrite CU', cursive); }
+
+/* ---------- risograph: teks berlapis offset (BUKAN text-shadow) ---------- */
+.riso {
+  position: relative;
+  display: inline-block;
+  color: var(--text);
+}
+.riso::before {
+  content: attr(data-text);
+  position: absolute;
+  left: 3px; top: 3px;
+  color: var(--accent);
+  z-index: -1;
+  font: inherit;
+}
+
+/* ---------- outline raksasa (judul pintu) ---------- */
+.title-door {
+  font-family: var(--font-caveat, 'Caveat', cursive);
+  font-weight: 700;
+  font-size: clamp(4.5rem, 20vw, 15rem);
+  line-height: 0.9;
+  color: transparent;
+  -webkit-text-stroke: 3px var(--text);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+/* ---------- grain risograph (feTurbulence, statis, ringan) ---------- */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0.07;
+}
+
+/* ---------- spotlight cursor (desktop, pointer:fine) ---------- */
+.spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  background: oklch(0.16 0.03 318 / 0.55);
+  -webkit-mask-image: radial-gradient(circle 180px at var(--sx, 50%) var(--sy, 50%), transparent 0, transparent 55%, black 100%);
+  mask-image: radial-gradient(circle 180px at var(--sx, 50%) var(--sy, 50%), transparent 0, transparent 55%, black 100%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+body.spot-on .spotlight { opacity: 1; }
+
+/* ---------- marquee diagonal (Gerak B) ---------- */
+.marquee-zone { overflow: clip; padding: 1.25rem 0; }
+.marquee-band {
+  display: flex;
+  width: max-content;
+  transform: rotate(-2.5deg) scale(1.05);
+  border-top: var(--bd);
+  border-bottom: var(--bd);
+  background: var(--text);
+  color: var(--bg);
+  overflow: hidden;
+}
+.marquee-band.band-2 {
+  transform: rotate(2deg) scale(1.05);
+  background: var(--accent-2);
+  color: var(--text);
+}
+.marquee-track {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  padding: 0.65rem 1.25rem;
+  white-space: nowrap;
+  font-family: var(--font-caveat, 'Caveat', cursive);
+  font-size: 1.6rem;
+  font-weight: 600;
+  animation: marquee 28s linear infinite;
+  will-change: transform;
+}
+.band-2 .marquee-track { animation-duration: 34s; animation-direction: reverse; }
+.marquee-zone.paused .marquee-track { animation-play-state: paused; }
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
+
+/* ---------- timeline satu sumbu ---------- */
+.tl { position: relative; }
+.tl-spine {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 1.1rem;
+  width: 3px;
+  background: var(--text);
+}
+@media (min-width: 900px) {
+  .tl-spine { left: 50%; transform: translateX(-50%); }
+}
+.tl-node { position: relative; padding: 0 0 3.5rem 3.25rem; }
+@media (min-width: 900px) {
+  .tl-node { padding-left: 0; width: 50%; }
+  .tl-node:nth-of-type(odd) { margin-left: 0; padding-right: 3rem; text-align: right; }
+  .tl-node:nth-of-type(even) { margin-left: 50%; padding-left: 3rem; }
+}
+.tl-dot {
+  position: absolute;
+  left: 1.1rem; top: 0.4rem;
+  width: 1.6rem; height: 1.6rem;
+  transform: translateX(-50%);
+  background: var(--bg);
+  border: var(--bd);
+  border-radius: 9999px;
+}
+.tl-dot::after {
+  content: attr(data-n);
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-family: var(--font-caveat, 'Caveat', cursive);
+  font-weight: 700; font-size: 1rem; color: var(--text);
+}
+@media (min-width: 900px) {
+  .tl-node:nth-of-type(odd) .tl-dot { left: 100%; }
+  .tl-node:nth-of-type(even) .tl-dot { left: 0; }
+}
+@media (max-width: 899px) { .tl-node { text-align: left; } }
+
+/* ---------- kartu halaman buku ---------- */
+.book-card {
+  background: var(--surface);
+  border: var(--bd);
+  padding: 1.25rem;
+  position: relative;
+}
+.book-card.taped::before {
+  content: "";
+  position: absolute;
+  top: -14px; left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  width: 110px; height: 26px;
+  background: var(--accent);
+  border: var(--bd-thin);
+  opacity: 0.9;
+}
+
+/* ---------- perforasi (divider lubang) ---------- */
+.perforation {
+  height: 22px;
+  margin: 0.5rem 0;
+  background-image: radial-gradient(circle, var(--text) 4px, transparent 4.5px);
+  background-size: 28px 22px;
+  background-repeat: repeat-x;
+  background-position: center;
+  opacity: 0.55;
+}
+
+/* ---------- form ---------- */
+.field {
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+.field > span.lbl {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.inp, select.inp, textarea.inp {
+  font-family: var(--font-jaldi, sans-serif);
+  font-size: 1.1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: var(--bd);
+  padding: 0.6rem 0.8rem;
+  min-height: 52px;
+  width: 100%;
+}
+.inp:focus-visible, .btn:focus-visible, .chip:focus-visible {
+  outline: 3px solid var(--accent-2);
+  outline-offset: 2px;
+}
+.inp::placeholder { color: var(--muted); }
+
+/* ---------- tombol ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem;
+  font-family: var(--font-caveat, 'Caveat', cursive);
+  font-weight: 700; font-size: 1.35rem;
+  color: var(--text);
+  background: var(--accent);
+  border: var(--bd);
+  padding: 0.55rem 1.3rem;
+  min-height: 52px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.12s ease;
+}
+.btn:hover { transform: translate(-2px, -2px); }
+.btn:active { transform: translate(2px, 2px); }
+.btn.ghost { background: var(--bg); }
+.btn.blue { background: var(--accent-2); color: var(--text); }
+.btn.green { background: var(--pop); }
+.btn.danger { background: var(--surface); }
+.btn.small { font-size: 1.05rem; min-height: 44px; padding: 0.35rem 0.9rem; }
+.btn.icon-only { padding: 0.5rem; min-width: 52px; }
+.btn svg, .chip svg { width: 1.25em; height: 1.25em; flex: none; }
+
+/* ---------- chip / daftar ---------- */
+.row-item {
+  display: flex; align-items: center; gap: 0.6rem;
+  border: var(--bd-thin);
+  background: var(--bg);
+  padding: 0.45rem 0.6rem;
+}
+.row-item .grow { flex: 1; min-width: 0; }
+.chip {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  border: var(--bd-thin);
+  background: var(--bg);
+  padding: 0.35rem 0.7rem;
+  font-size: 1rem; font-weight: 700;
+  cursor: pointer;
+  min-height: 44px;
+}
+.chip[aria-pressed="true"] { background: var(--accent-2); color: var(--text); }
+.chip[aria-pressed="false"] { opacity: 0.75; }
+
+/* ---------- coretan Bu Bendahara ---------- */
+.bendahara {
+  font-family: var(--font-playwrite-cu, 'Playwrite CU', cursive);
+  color: var(--muted);
+  font-size: 1.05rem;
+  transform: rotate(-1.5deg);
+  display: inline-block;
+}
+.bendahara.warn { color: var(--text); }
+.bendahara.good { color: oklch(0.35 0.12 120); }
+
+/* ---------- stempel LUNAS ---------- */
+.stamp {
+  width: 168px; height: 168px;
+  cursor: pointer;
+  animation: stamp-spin 24s linear infinite;
+  touch-action: manipulation;
+}
+@keyframes stamp-spin { to { transform: rotate(360deg); } }
+.stamp.tapped { animation: stamp-slam 0.35s ease; }
+@keyframes stamp-slam {
+  0% { transform: scale(1.4) rotate(-8deg); }
+  60% { transform: scale(0.92) rotate(3deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* ---------- odometer ---------- */
+.odometer {
+  font-family: var(--font-caveat, 'Caveat', cursive);
+  font-weight: 700;
+  font-size: clamp(2.6rem, 9vw, 4.5rem);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- headline path melengkung (Gerak C) ---------- */
+.curve-title {
+  font-family: var(--font-caveat, 'Caveat', cursive);
+  font-weight: 700;
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  fill: transparent;
+  stroke: var(--text);
+  stroke-width: 1.5px;
+  transition: fill 0.9s ease;
+}
+.tl-node.revealed .curve-title, section.revealed .curve-title { fill: var(--text); }
+
+/* ---------- curtain wipe antar section (Gerak E) ---------- */
+[data-wipe] {
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.revealed [data-wipe] { clip-path: inset(0 0 0% 0); }
+
+/* ---------- zoom-through (Gerak A) ---------- */
+.zoom-stage { height: 230vh; position: relative; }
+.zoom-pin {
+  position: sticky; top: 0;
+  height: 100vh; height: 100svh;
+  overflow: clip;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+}
+.zoom-inner { will-change: transform; transform-origin: 50% 55%; }
+
+/* ---------- hasil: kartu orang ---------- */
+.person-card {
+  border: var(--bd);
+  background: var(--bg);
+  padding: 0.9rem 1rem;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.person-card .amount {
+  font-family: var(--font-caveat, 'Caveat', cursive);
+  font-weight: 700; font-size: 2rem;
+}
+.person-card.is-payer { border-color: var(--text); background: var(--accent); }
+
+/* ---------- toggle gerak ---------- */
+.motion-toggle {
+  position: fixed;
+  top: 0.75rem; right: 0.75rem;
+  z-index: 100;
+  font-family: var(--font-caveat, 'Caveat', cursive);
+  font-weight: 700; font-size: 1.1rem;
+  background: var(--bg);
+  border: var(--bd);
+  padding: 0.35rem 0.8rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+/* ---------- status / toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%; bottom: 1rem;
+  transform: translateX(-50%) translateY(150%);
+  z-index: 110;
+  background: var(--text);
+  color: var(--bg);
+  border: var(--bd);
+  font-weight: 700;
+  padding: 0.6rem 1.1rem;
+  max-width: min(92vw, 30rem);
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ---------- spinner loading ---------- */
+.spinner {
+  display: inline-block;
+  width: 1.1em; height: 1.1em;
+  border: 3px solid var(--muted);
+  border-top-color: var(--text);
+  border-radius: 9999px;
+  animation: spin 0.8s linear infinite;
+  vertical-align: -0.2em;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- MODE RINGAN ---------- */
+body.lite .spotlight, body.lite .grain { display: none; }
+body.lite .band-2 { display: none; }
+body.lite .zoom-inner { transform: none !important; }
+body.lite .marquee-track { animation-duration: 60s; }
+body.lite [data-wipe] { transition-duration: 0.2s; }
+
+/* ---------- hormati prefers-reduced-motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .marquee-track, .stamp { animation: none !important; }
+  [data-wipe] { transition: none; clip-path: inset(0); }
+  .zoom-inner { transform: none !important; }
+  .btn:hover { transform: none; }
+  .curve-title { fill: var(--text); stroke: none; }
+}
+body.motion-off .marquee-track, body.motion-off .stamp { animation-play-state: paused; }
+body.motion-off .zoom-inner { transform: none !important; }
+body.motion-off [data-wipe] { transition: none; clip-path: inset(0); }
+body.motion-off .curve-title { fill: var(--text); }
+
+/* ---------- cetak struk ---------- */
+#print-receipt { display: none; }
+@media print {
+  body > *:not(#print-receipt) { display: none !important; }
+  #print-receipt {
+    display: block !important;
+    font-family: monospace;
+    color: #000; background: #fff;
+    max-width: 300px; margin: 0 auto;
+    font-size: 12px; line-height: 1.5;
+  }
+  #print-receipt h2 { font-size: 16px; text-align: center; }
+  #print-receipt .dotted { border-top: 1px dashed #000; margin: 8px 0; }
+}
+
+/* ---------- aksesibilitas ---------- */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+}
+details.faq { border: var(--bd); background: var(--surface); margin-bottom: 0.75rem; }
+details.faq summary {
+  cursor: pointer; font-weight: 700; padding: 0.8rem 1rem;
+  font-family: var(--font-caveat, 'Caveat', cursive); font-size: 1.4rem;
+  list-style: none;
+}
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary::before { content: "+ "; color: var(--accent-2); }
+details.faq[open] summary::before { content: "– "; }
+details.faq .faq-body { padding: 0 1rem 1rem; }
+
+/* utility kecil */
+.wrap { max-width: 72rem; margin-inline: auto; padding-inline: 1rem; }
+.section-pad { padding-block: 3.5rem; }
+.muted { color: var(--muted); }
+/* timpa text-muted bawaan template agar kontras AA di atas kertas mauve */
+.text-muted { color: var(--muted) !important; }
+.stack > * + * { margin-top: 0.75rem; }
+.hint { font-size: 0.95rem; color: var(--muted); }

@@ -1,0 +1,24 @@
+---
+// Ikon custom digambar tangan untuk BagiBon (bukan dari icon set).
+// Gaya: outline tebal, sudut tajam — selaras Phosphor Bold 3px.
+export interface Props {
+  class?: string;
+  title?: string;
+}
+const { class: cls = '', title = '' } = Astro.props;
+---
+
+<!-- Buku arisan terbuka -->
+<svg class={cls} viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" role="img" aria-label={title || 'Buku arisan terbuka'}>
+  <path d="M8 14 C16 10, 26 10, 32 14 C38 10, 48 10, 56 14 L56 50 C48 46, 38 46, 32 50 C26 46, 16 46, 8 50 Z" />
+  <path d="M32 14 L32 50" />
+  <path d="M14 22 C19 20, 24 20, 28 21" />
+  <path d="M14 30 C19 28, 24 28, 28 29" />
+  <path d="M36 22 C40 20, 45 20, 50 22" />
+  <path d="M36 30 C40 28, 45 28, 50 30" />
+  <path d="M40 38 L50 44" stroke-width="3" />
+</svg>
+
+<style>
+  svg { width: 1em; height: 1em; }
+</style>

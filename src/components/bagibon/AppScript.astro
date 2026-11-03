@@ -1,0 +1,799 @@
+---
+// BagiBon — seluruh logika client-side: state, hitung live, persistence,
+// deep-link, ekspor/impor, cetak, preset, gerak A–E, easter egg.
+---
+
+<script>
+(() => {
+  'use strict';
+
+  /* ================= util ================= */
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+  const uid = () => 'x' + Math.random().toString(36).slice(2, 10);
+  const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const rupiah = (n) => 'Rp' + Math.round(n).toLocaleString('id-ID');
+  const b64urlEncode = (str) => btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const b64urlDecode = (str) => decodeURIComponent(escape(atob(str.replace(/-/g, '+').replace(/_/g, '/'))));
+
+  /* ================= state ================= */
+  const LS_KEY = 'bagibon:v1';
+  const LS_MOTION = 'bagibon:motion';
+
+  let state = { participants: [], items: [], tax: '', service: '', payerId: '' };
+  let history = [];
+  let displayedTotal = 0;
+
+  const blankState = () => ({ participants: [], items: [], tax: '', service: '', payerId: '' });
+
+  function validSnapshot(s) {
+    if (!s || typeof s !== 'object') return null;
+    const out = blankState();
+    if (Array.isArray(s.participants)) {
+      out.participants = s.participants
+        .filter((p) => p && typeof p.name === 'string' && p.name.trim())
+        .slice(0, 30)
+        .map((p) => ({ id: typeof p.id === 'string' ? p.id.slice(0, 24) : uid(), name: p.name.trim().slice(0, 24) }));
+    }
+    const ids = new Set(out.participants.map((p) => p.id));
+    if (Array.isArray(s.items)) {
+      out.items = s.items
+        .filter((it) => it && typeof it.name === 'string' && it.name.trim())
+        .slice(0, 60)
+        .map((it) => ({
+          id: typeof it.id === 'string' ? it.id.slice(0, 24) : uid(),
+          name: it.name.trim().slice(0, 40),
+          price: Math.max(0, Math.round(Number(it.price) || 0)),
+          eaters: Array.isArray(it.eaters) ? it.eaters.filter((e) => ids.has(e)) : [],
+        }));
+    }
+    out.tax = String(s.tax || '').replace(/[^0-9.]/g, '').slice(0, 6);
+    out.service = String(s.service || '').replace(/[^0-9.]/g, '').slice(0, 6);
+    out.payerId = ids.has(s.payerId) ? s.payerId : '';
+    return out;
+  }
+
+  function persist() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ v: 1, current: state, history }));
+    } catch (e) { /* penyimpanan penuh / privat: jalan tanpa simpan */ }
+  }
+  function restore() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data && data.v === 1) {
+        const s = validSnapshot(data.current);
+        if (s) state = s;
+        if (Array.isArray(data.history)) history = data.history.slice(0, 20);
+      }
+    } catch (e) { /* data rusak → pakai default */ }
+  }
+
+  /* ================= preset ================= */
+  const PRESETS = {
+    kopi: {
+      label: 'Warung Kopi Sore',
+      participants: ['Budi', 'Sari', 'Andi', 'Maya'],
+      items: [
+        { name: 'kopi susu gula aren', price: 15000, eaters: [0, 1, 2, 3] },
+        { name: 'es teh manis', price: 8000, eaters: [0, 1, 2, 3] },
+        { name: 'indomie goreng + telur', price: 13000, eaters: [0, 2] },
+        { name: 'pisang goreng', price: 10000, eaters: [0, 1, 2, 3] },
+        { name: 'mendoan', price: 8000, eaters: [1, 3] },
+      ],
+    },
+    warteg: {
+      label: 'Warteg Bahari',
+      participants: ['Budi', 'Sari', 'Andi'],
+      items: [
+        { name: 'nasi + ayam geprek', price: 15000, eaters: [0] },
+        { name: 'nasi + telur balado', price: 12000, eaters: [1] },
+        { name: 'es jeruk', price: 7000, eaters: [0, 1, 2] },
+        { name: 'kerupuk', price: 2000, eaters: [0, 1, 2] },
+        { name: 'sayur sop', price: 8000, eaters: [1, 2] },
+      ],
+    },
+    kafe: {
+      label: 'Kafe Nongkrong',
+      participants: ['Budi', 'Sari', 'Andi', 'Maya', 'Rina'],
+      items: [
+        { name: 'matcha latte', price: 28000, eaters: [1] },
+        { name: 'croffle', price: 22000, eaters: [0, 1] },
+        { name: 'kentang goreng', price: 18000, eaters: [0, 1, 2, 3, 4] },
+        { name: 'air mineral', price: 5000, eaters: [0, 1, 2, 3, 4] },
+        { name: 'red velvet', price: 25000, eaters: [3, 4] },
+      ],
+    },
+  };
+
+  function loadPreset(key) {
+    const p = PRESETS[key];
+    if (!p) return;
+    const ids = p.participants.map(() => uid());
+    state = {
+      participants: p.participants.map((name, i) => ({ id: ids[i], name })),
+      items: p.items.map((it) => ({
+        id: uid(),
+        name: it.name,
+        price: it.price,
+        eaters: it.eaters.map((i) => ids[i]).filter(Boolean),
+      })),
+      tax: '',
+      service: '',
+      payerId: '',
+    };
+    syncInputs();
+    renderAll();
+    toast('Contoh "' + p.label + '" dimuat — semua harga cuma contoh ya.');
+  }
+
+  /* ================= toast & status ================= */
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('#toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+  }
+  function setShareStatus(html) {
+    const el = $('#share-status');
+    if (el) el.innerHTML = html;
+  }
+
+  /* ================= hitung ================= */
+  function compute() {
+    const errors = [];
+    const ps = state.participants;
+    const okItems = state.items.filter((it) => it.name && it.price > 0 && it.eaters.length > 0);
+    if (ps.length < 2) errors.push('tulis namanya dulu, jangan asal — minimal 2 orang biar bisa patungan.');
+    if (state.items.length === 0) errors.push('belum ada bon yang ditulis, gimana mau bagi?');
+    else if (okItems.length === 0) errors.push('harganya kok kosong, Bu? isi dulu gih.');
+    if (errors.length) return { errors, totals: null, grand: 0, okItems };
+
+    const tax = clamp(parseFloat(state.tax) || 0, 0, 100);
+    const service = clamp(parseFloat(state.service) || 0, 0, 100);
+    const factor = 1 + tax / 100 + service / 100;
+
+    const sub = {};
+    ps.forEach((p) => { sub[p.id] = 0; });
+    okItems.forEach((it) => {
+      const share = it.price / it.eaters.length;
+      it.eaters.forEach((eid) => { if (eid in sub) sub[eid] += share; });
+    });
+    const totals = {};
+    let grand = 0;
+    ps.forEach((p) => {
+      totals[p.id] = Math.round(sub[p.id] * factor);
+      grand += totals[p.id];
+    });
+
+    let nombok = null;
+    const payer = ps.find((p) => p.id === state.payerId);
+    if (payer) nombok = { name: payer.name, amount: grand - totals[payer.id] };
+
+    return { errors: [], totals, grand, okItems, nombok, tax, service };
+  }
+
+  /* ================= render ================= */
+  function renderParticipants() {
+    const list = $('#p-list');
+    const empty = $('#p-empty');
+    list.innerHTML = '';
+    empty.hidden = state.participants.length > 0;
+    state.participants.forEach((p) => {
+      const li = document.createElement('li');
+      li.className = 'row-item';
+      li.innerHTML =
+        '<span class="grow"><strong>' + esc(p.name) + '</strong></span>' +
+        '<button type="button" class="btn small danger icon-only" data-del-p="' + esc(p.id) + '" aria-label="Hapus ' + esc(p.name) + '">✕</button>';
+      list.appendChild(li);
+    });
+  }
+
+  function renderEaterChips() {
+    const box = $('#i-eaters');
+    const hint = $('#i-eaters-hint');
+    box.innerHTML = '';
+    if (!state.participants.length) {
+      hint.hidden = false;
+      return;
+    }
+    hint.hidden = true;
+    state.participants.forEach((p) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.textContent = p.name;
+      b.dataset.eater = p.id;
+      b.setAttribute('aria-pressed', 'true');
+      b.addEventListener('click', () => {
+        b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function renderItems() {
+    const list = $('#i-list');
+    const empty = $('#i-empty');
+    list.innerHTML = '';
+    empty.hidden = state.items.length > 0;
+    const names = {};
+    state.participants.forEach((p) => { names[p.id] = p.name; });
+    state.items.forEach((it) => {
+      const li = document.createElement('li');
+      li.className = 'row-item';
+      const eaters = it.eaters.map((e) => esc(names[e] || '?')).join(', ') || '<span class="muted">belum dipilih</span>';
+      const bad = !(it.price > 0) ? ' <span class="bendahara warn">← ' + (it.price <= 0 ? 'harganya kok kosong, Bu? isi dulu gih' : '') + '</span>' : '';
+      li.innerHTML =
+        '<span class="grow"><strong>' + esc(it.name) + '</strong> — ' + rupiah(it.price) +
+        '<br><span class="hint">dimakan: ' + eaters + '</span>' + bad + '</span>' +
+        '<button type="button" class="btn small danger icon-only" data-del-i="' + esc(it.id) + '" aria-label="Hapus ' + esc(it.name) + '">✕</button>';
+      list.appendChild(li);
+    });
+  }
+
+  function renderPayer() {
+    const sel = $('#payer');
+    const cur = state.payerId;
+    sel.innerHTML = '<option value="">— belum ada yang bayar —</option>';
+    state.participants.forEach((p) => {
+      const o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.name;
+      sel.appendChild(o);
+    });
+    sel.value = cur || '';
+  }
+
+  function animateOdometer(target) {
+    const el = $('#total-odometer');
+    if (motionAllows()) {
+      const from = displayedTotal;
+      const t0 = performance.now();
+      const dur = 650;
+      const step = (t) => {
+        const p = clamp((t - t0) / dur, 0, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        displayedTotal = from + (target - from) * eased;
+        el.textContent = rupiah(displayedTotal);
+        if (p < 1) requestAnimationFrame(step);
+        else displayedTotal = target;
+      };
+      requestAnimationFrame(step);
+    } else {
+      displayedTotal = target;
+      el.textContent = rupiah(target);
+    }
+  }
+
+  function renderResults() {
+    const r = compute();
+    const box = $('#results');
+    const empty = $('#r-empty');
+    const nombokBox = $('#nombok-box');
+    box.innerHTML = '';
+    if (r.errors.length || !r.totals) {
+      empty.hidden = false;
+      empty.textContent = r.errors[0] || 'lengkapi dulu nama + bonnya, baru Bu Bendahara hitung.';
+      nombokBox.hidden = true;
+      animateOdometer(0);
+      return;
+    }
+    empty.hidden = true;
+    animateOdometer(r.grand);
+    state.participants.forEach((p) => {
+      const d = document.createElement('div');
+      d.className = 'person-card' + (state.payerId === p.id ? ' is-payer' : '');
+      const tag = state.payerId === p.id
+        ? '<span class="hint">bayar duluan</span>'
+        : '<span class="hint">bayar ke yang nombok</span>';
+      d.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;">' +
+        '<strong style="font-size:1.2rem;">' + esc(p.name) + '</strong>' +
+        '<span class="amount">' + rupiah(r.totals[p.id]) + '</span></div>' +
+        '<div>' + tag + '</div>';
+      box.appendChild(d);
+    });
+    if (r.nombok && r.nombok.amount > 0) {
+      nombokBox.hidden = false;
+      $('#nombok-text').textContent = r.nombok.name + ' nombok ' + rupiah(r.nombok.amount) + ' — balikin ke ' + r.nombok.name + ' ya.';
+    } else {
+      nombokBox.hidden = true;
+    }
+  }
+
+  function renderHistory() {
+    const list = $('#history-list');
+    const empty = $('#hist-empty');
+    list.innerHTML = '';
+    empty.hidden = history.length > 0;
+    history.forEach((h) => {
+      const li = document.createElement('li');
+      li.className = 'row-item';
+      const when = new Date(h.savedAt);
+      const label = when.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) + ' ' +
+        when.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      li.innerHTML =
+        '<span class="grow"><strong>' + esc(h.name) + '</strong><br><span class="hint">' + esc(label) + ' • ' +
+        h.snapshot.participants.length + ' orang • ' + h.snapshot.items.length + ' item</span></span>' +
+        '<button type="button" class="btn small" data-hist-load="' + esc(h.id) + '">Buka</button>' +
+        '<button type="button" class="btn small danger icon-only" data-hist-del="' + esc(h.id) + '" aria-label="Hapus riwayat ' + esc(h.name) + '">✕</button>';
+      list.appendChild(li);
+    });
+  }
+
+  function syncInputs() {
+    $('#tax').value = state.tax;
+    $('#service').value = state.service;
+    renderPayer();
+  }
+
+  function renderAll() {
+    renderParticipants();
+    renderEaterChips();
+    renderItems();
+    renderPayer();
+    renderResults();
+    renderHistory();
+    persist();
+  }
+
+  /* ================= aksi form ================= */
+  function addParticipant(name) {
+    const err = $('#p-error');
+    name = (name || '').trim();
+    if (!name) {
+      err.hidden = false;
+      err.textContent = 'namanya ditulis dulu, jangan asal.';
+      return;
+    }
+    if (state.participants.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+      err.hidden = false;
+      err.textContent = '"' + name + '" sudah ada di buku — pakai nama lain biar nggak ketuker.';
+      return;
+    }
+    if (state.participants.length >= 30) {
+      err.hidden = false;
+      err.textContent = 'kebanyakan, maksimal 30 orang.';
+      return;
+    }
+    err.hidden = true;
+    state.participants.push({ id: uid(), name: name.slice(0, 24) });
+    $('#p-name').value = '';
+    renderAll();
+  }
+
+  function addItem(name, priceRaw, eaterIds) {
+    const err = $('#i-error');
+    name = (name || '').trim();
+    const price = Math.round(Number(priceRaw));
+    if (!name) {
+      err.hidden = false;
+      err.textContent = 'nama makanannya ditulis dulu.';
+      return;
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      err.hidden = false;
+      err.textContent = 'harganya kok kosong, Bu? isi dulu gih.';
+      return;
+    }
+    if (!eaterIds.length) {
+      err.hidden = false;
+      err.textContent = 'pilih dulu siapa yang makan item ini.';
+      return;
+    }
+    err.hidden = true;
+    state.items.push({ id: uid(), name: name.slice(0, 40), price, eaters: eaterIds });
+    $('#i-name').value = '';
+    $('#i-price').value = '';
+    renderEaterChips();
+    renderAll();
+  }
+
+  /* ================= ringkasan WA ================= */
+  function buildSummary() {
+    const r = compute();
+    if (!r.totals) return null;
+    const lines = ['*BAGIBON — buku arisan Bu Bendahara*', '', 'Rincian patungan:'];
+    state.participants.forEach((p) => {
+      lines.push('• ' + p.name + ' — ' + rupiah(r.totals[p.id]));
+    });
+    lines.push('', 'Total: ' + rupiah(r.grand));
+    if (r.tax) lines.push('Pajak: ' + r.tax + '%');
+    if (r.service) lines.push('Service: ' + r.service + '%');
+    if (r.nombok && r.nombok.amount > 0) {
+      lines.push('', 'Bayar duluan: ' + r.nombok.name + ' (balikin ' + rupiah(r.nombok.amount) + ' ke ' + r.nombok.name + ' ya)');
+    }
+    return lines.join('\n');
+  }
+
+  async function copyText(text, okMsg) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(okMsg);
+      return;
+    } catch (e) { /* fallback di bawah */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      toast(okMsg);
+    } catch (e2) {
+      toast('gagal menyalin — salin manual aja ya.');
+    }
+  }
+
+  function shareWA() {
+    const text = buildSummary();
+    if (!text) {
+      toast('belum bisa dibagikan — lengkapi dulu nama + bonnya.');
+      return;
+    }
+    setShareStatus('menyalin ringkasan…');
+    copyText(text, 'ringkasan tersalin — tinggal tempel ke WA.');
+    setShareStatus('');
+  }
+
+  function shareLink() {
+    const snap = {
+      participants: state.participants,
+      items: state.items,
+      tax: state.tax,
+      service: state.service,
+      payerId: state.payerId,
+    };
+    const url = location.origin + location.pathname + '?bon=' + b64urlEncode(JSON.stringify(snap));
+    copyText(url, 'tautan bon tersalin — yang buka tautan langsung lihat bon ini.');
+  }
+
+  /* ================= ekspor / impor / cetak ================= */
+  function exportJSON() {
+    const data = {
+      app: 'bagibon',
+      v: 1,
+      exportedAt: new Date().toISOString(),
+      state: {
+        participants: state.participants,
+        items: state.items,
+        tax: state.tax,
+        service: state.service,
+        payerId: state.payerId,
+      },
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'bagibon-bon.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    toast('bon diunduh sebagai JSON.');
+  }
+
+  function importJSON(file) {
+    setShareStatus('<span class="spinner" aria-hidden="true"></span> bentar, Bu Bendahara lagi baca bonnya…');
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        const snap = validSnapshot(data && data.state ? data.state : data);
+        if (!snap || !snap.participants.length) throw new Error('bad');
+        state = snap;
+        syncInputs();
+        renderAll();
+        setShareStatus('');
+        toast('bon dari file dimuat — cek lagi ya sebelum dibagi.');
+      } catch (e) {
+        setShareStatus('');
+        toast('file-nya bukan bon BagiBon yang sah.');
+      }
+    };
+    reader.onerror = () => {
+      setShareStatus('');
+      toast('file-nya nggak kebaca.');
+    };
+    reader.readAsText(file);
+  }
+
+  function printReceipt() {
+    const r = compute();
+    const box = $('#print-receipt');
+    if (!r.totals) {
+      toast('belum bisa dicetak — lengkapi dulu nama + bonnya.');
+      return;
+    }
+    const d = new Date();
+    let html = '<h2>BAGIBON</h2><div style="text-align:center">buku arisan Bu Bendahara<br>' +
+      d.toLocaleDateString('id-ID') + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) +
+      '</div><div class="dotted"></div>';
+    r.okItems.forEach((it) => {
+      html += '<div>' + esc(it.name) + '<br>' + rupiah(it.price) + ' / ' + it.eaters.length + ' orang</div>';
+    });
+    html += '<div class="dotted"></div>';
+    state.participants.forEach((p) => {
+      html += '<div>' + esc(p.name) + ': ' + rupiah(r.totals[p.id]) + '</div>';
+    });
+    html += '<div class="dotted"></div><div><strong>TOTAL: ' + rupiah(r.grand) + '</strong></div>';
+    if (r.nombok && r.nombok.amount > 0) {
+      html += '<div>Nombok: ' + esc(r.nombok.name) + ' ' + rupiah(r.nombok.amount) + '</div>';
+    }
+    html += '<div class="dotted"></div><div style="text-align:center">udah lunas semua, alhamdulillah</div>';
+    box.innerHTML = html;
+    window.print();
+  }
+
+  /* ================= riwayat ================= */
+  function saveHistory() {
+    if (!state.participants.length) {
+      toast('belum ada yang bisa disimpan — isi dulu bonnya.');
+      return;
+    }
+    const d = new Date();
+    const name = 'Bon ' + d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) + ' ' +
+      d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    history.unshift({
+      id: uid(),
+      name,
+      savedAt: d.getTime(),
+      snapshot: JSON.parse(JSON.stringify({
+        participants: state.participants,
+        items: state.items,
+        tax: state.tax,
+        service: state.service,
+        payerId: state.payerId,
+      })),
+    });
+    history = history.slice(0, 20);
+    renderHistory();
+    persist();
+    toast('"' + name + '" tersimpan di riwayat.');
+  }
+
+  /* ================= deep-link ?bon= ================= */
+  function loadFromURL() {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get('bon');
+    if (!raw) return;
+    setShareStatus('<span class="spinner" aria-hidden="true"></span> bentar, Bu Bendahara lagi baca bonnya…');
+    setTimeout(() => {
+      try {
+        const snap = validSnapshot(JSON.parse(b64urlDecode(raw)));
+        if (!snap || !snap.participants.length) throw new Error('bad');
+        state = snap;
+        syncInputs();
+        renderAll();
+        setShareStatus('');
+        toast('bon dari tautan dimuat — silakan cek lagi ya.');
+      } catch (e) {
+        setShareStatus('');
+        toast('tautannya nggak kebaca, Bu Bendahara bingung.');
+      }
+      window.history.replaceState({}, '', location.pathname);
+    }, 350);
+  }
+
+  /* ================= gerak A–E ================= */
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const liteAuto = (navigator.hardwareConcurrency || 8) <= 4 ||
+    (navigator.deviceMemory || 8) <= 4 ||
+    (navigator.connection && navigator.connection.saveData === true);
+  if (liteAuto && !document.body.classList.contains('lite')) {
+    document.body.classList.add('lite');
+  }
+  let motionOff = localStorage.getItem(LS_MOTION) === 'off' || reducedMotion;
+  function motionAllows() {
+    return !motionOff && !reducedMotion && !document.body.classList.contains('lite');
+  }
+  function applyMotionToggle() {
+    document.body.classList.toggle('motion-off', motionOff);
+    const btn = $('#motion-toggle');
+    if (btn) {
+      btn.setAttribute('aria-pressed', String(!motionOff));
+      btn.querySelector('.mt-label').textContent = motionOff ? 'Gerak: mati' : 'Gerak: nyala';
+    }
+    try { localStorage.setItem(LS_MOTION, motionOff ? 'off' : 'on'); } catch (e) {}
+  }
+
+  function initMotion() {
+    applyMotionToggle();
+    const toggle = $('#motion-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        motionOff = !motionOff;
+        applyMotionToggle();
+        toast(motionOff ? 'gerak dimatikan — bukunya anteng.' : 'gerak dinyalakan — bukunya hidup lagi.');
+      });
+    }
+
+    // E: curtain wipe — observe ancestor (section), bukan elemen ber-clip (pelajaran IO 2026-10-21)
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((en) => {
+        if (en.isIntersecting) {
+          en.target.classList.add('revealed');
+          io.unobserve(en.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    $$('.tl-node, .reveal-me').forEach((el) => io.observe(el));
+
+    // A: zoom-through pintu PATUNGAN
+    const stage = $('.zoom-stage');
+    const inner = $('.zoom-inner');
+    if (stage && inner && motionAllows()) {
+      let ticking = false;
+      const update = () => {
+        ticking = false;
+        const r = stage.getBoundingClientRect();
+        const total = r.height - window.innerHeight;
+        const prog = clamp(-r.top / Math.max(total, 1), 0, 1);
+        inner.style.transform = 'scale(' + (1 + prog * 0.6).toFixed(3) + ')';
+      };
+      window.addEventListener('scroll', () => {
+        if (!ticking) { ticking = true; requestAnimationFrame(update); }
+      }, { passive: true });
+      update();
+    }
+
+    // B: jeda pita + skew mengikuti velocity scroll
+    $$('.motion-pause').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const zone = btn.closest('.marquee-zone');
+        const paused = zone.classList.toggle('paused');
+        btn.setAttribute('aria-pressed', String(paused));
+        btn.setAttribute('aria-label', paused ? 'Jalankan pita berjalan' : 'Jeda pita berjalan');
+        btn.querySelector('.motion-pause-label').textContent = paused ? 'jalanin pita' : 'jeda pita';
+      });
+    });
+    if (motionAllows() && !document.body.classList.contains('lite')) {
+      let lastY = window.scrollY, ticking = false;
+      window.addEventListener('scroll', () => {
+        if (!ticking) {
+          ticking = true;
+          requestAnimationFrame(() => {
+            ticking = false;
+            const v = clamp((window.scrollY - lastY) * 0.15, -12, 12);
+            lastY = window.scrollY;
+            $$('.marquee-band').forEach((b, i) => {
+              const base = i % 2 === 0 ? 'rotate(-2.5deg)' : 'rotate(2deg)';
+              b.style.transform = base + ' scale(1.05) skewX(' + v.toFixed(2) + 'deg)';
+            });
+          });
+        }
+      }, { passive: true });
+    }
+
+    // D: spotlight cursor (pointer halus saja)
+    if (window.matchMedia('(pointer: fine)').matches && motionAllows()) {
+      const spot = $('.spotlight');
+      document.addEventListener('pointermove', (e) => {
+        spot.style.setProperty('--sx', e.clientX + 'px');
+        spot.style.setProperty('--sy', e.clientY + 'px');
+        if (!document.body.classList.contains('spot-on')) document.body.classList.add('spot-on');
+      }, { passive: true });
+
+      // tilt 3D ringan pada kartu hasil
+      document.addEventListener('pointermove', (e) => {
+        const card = e.target.closest ? e.target.closest('.person-card') : null;
+        $$('.person-card').forEach((c) => {
+          if (c === card) {
+            const r = c.getBoundingClientRect();
+            const rx = ((e.clientY - r.top) / r.height - 0.5) * -8;
+            const ry = ((e.clientX - r.left) / r.width - 0.5) * 8;
+            c.style.transform = 'perspective(600px) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+          } else {
+            c.style.transform = '';
+          }
+        });
+      }, { passive: true });
+    }
+  }
+
+  /* ================= easter egg stempel ================= */
+  function initStamp() {
+    const stamp = $('#stamp-lunas');
+    if (!stamp) return;
+    let taps = 0;
+    const hit = () => {
+      stamp.classList.remove('tapped');
+      void stamp.offsetWidth;
+      stamp.classList.add('tapped');
+      taps += 1;
+      if (taps >= 5) {
+        taps = 0;
+        const msg = $('#egg-msg');
+        if (msg) msg.hidden = false;
+        toast('Bu Bendahara nitip pesan…');
+      }
+    };
+    stamp.addEventListener('click', hit);
+    stamp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); hit(); }
+    });
+  }
+
+  /* ================= boot ================= */
+  function bind() {
+    $('#form-peserta').addEventListener('submit', (e) => {
+      e.preventDefault();
+      addParticipant($('#p-name').value);
+    });
+    $('#form-item').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const eaterIds = $$('#i-eaters .chip[aria-pressed="true"]').map((b) => b.dataset.eater);
+      addItem($('#i-name').value, $('#i-price').value, eaterIds);
+    });
+    document.addEventListener('click', (e) => {
+      const delP = e.target.closest('[data-del-p]');
+      if (delP) {
+        const id = delP.dataset.delP;
+        state.participants = state.participants.filter((p) => p.id !== id);
+        state.items.forEach((it) => { it.eaters = it.eaters.filter((x) => x !== id); });
+        if (state.payerId === id) state.payerId = '';
+        renderAll();
+        return;
+      }
+      const delI = e.target.closest('[data-del-i]');
+      if (delI) {
+        state.items = state.items.filter((it) => it.id !== delI.dataset.delI);
+        renderAll();
+        return;
+      }
+      const preset = e.target.closest('[data-preset]');
+      if (preset) {
+        loadPreset(preset.dataset.preset);
+        return;
+      }
+      const hLoad = e.target.closest('[data-hist-load]');
+      if (hLoad) {
+        const h = history.find((x) => x.id === hLoad.dataset.histLoad);
+        if (h) {
+          state = validSnapshot(h.snapshot) || blankState();
+          syncInputs();
+          renderAll();
+          toast('"' + h.name + '" dibuka lagi.');
+        }
+        return;
+      }
+      const hDel = e.target.closest('[data-hist-del]');
+      if (hDel) {
+        history = history.filter((x) => x.id !== hDel.dataset.histDel);
+        renderHistory();
+        persist();
+      }
+    });
+    $('#tax').addEventListener('input', (e) => { state.tax = e.target.value; renderResults(); persist(); });
+    $('#service').addEventListener('input', (e) => { state.service = e.target.value; renderResults(); persist(); });
+    $('#payer').addEventListener('change', (e) => { state.payerId = e.target.value; renderAll(); });
+    $('#share-wa').addEventListener('click', shareWA);
+    const wa2 = $('#share-wa-2');
+    if (wa2) wa2.addEventListener('click', shareWA);
+    $('#share-link').addEventListener('click', shareLink);
+    $('#export-json').addEventListener('click', exportJSON);
+    $('#import-json').addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) importJSON(e.target.files[0]);
+      e.target.value = '';
+    });
+    $('#print-btn').addEventListener('click', printReceipt);
+    $('#save-history').addEventListener('click', saveHistory);
+  }
+
+  restore();
+  syncInputs();
+  renderAll();
+  bind();
+  initMotion();
+  initStamp();
+  loadFromURL();
+})();
+</script>

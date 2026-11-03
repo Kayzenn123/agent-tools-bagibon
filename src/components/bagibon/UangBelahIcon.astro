@@ -1,0 +1,19 @@
+---
+// Uang kertas terbelah dua (zigzag) — simbol "bagi rata per item".
+export interface Props {
+  class?: string;
+  title?: string;
+}
+const { class: cls = '', title = 'Uang terbelah dua' } = Astro.props;
+---
+
+<svg class={cls} viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" role="img" aria-label={title}>
+  <rect x="6" y="16" width="22" height="32" />
+  <path d="M28 16 L36 24 L44 16 L58 16 L58 48 L44 48 L36 40 L28 48 Z" />
+  <circle cx="17" cy="32" r="5" />
+  <circle cx="51" cy="32" r="5" />
+</svg>
+
+<style>
+  svg { width: 1em; height: 1em; }
+</style>

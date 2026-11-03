@@ -1,0 +1,145 @@
+---
+import Layout from '~/layouts/Layout.astro';
+import FAQs from '~/components/widgets/FAQs.astro';
+import StructuredData from '~/components/common/StructuredData.astro';
+import { Icon } from 'astro-icon/components';
+
+import '~/components/bagibon/bagibon.css';
+import MarqueeBands from '~/components/bagibon/MarqueeBands.astro';
+import TimelineApp from '~/components/bagibon/TimelineApp.astro';
+import AppScript from '~/components/bagibon/AppScript.astro';
+import BukuIcon from '~/components/bagibon/BukuIcon.astro';
+import Perforasi from '~/components/bagibon/Perforasi.astro';
+
+import { SITE, METADATA, I18N } from 'astrowind:config';
+import favIconSvg from '~/assets/favicons/favicon.svg';
+
+const metadata = {
+  title: 'BagiBon — Patungan Bill Makan Bareng ala Buku Arisan',
+  description:
+    'BagiBon: hitung patungan bill makan bareng yang adil per item. 100% client-side, tanpa akun, tanpa server. Buku arisan raksasa milik Bu Bendahara.',
+};
+
+const organizationId = `${SITE?.site}/#organization`;
+const structuredData = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': `${SITE?.site}/#website`,
+    name: SITE?.name,
+    url: SITE?.site,
+    inLanguage: I18N?.language,
+    publisher: { '@id': organizationId },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'BagiBon',
+    applicationCategory: 'UtilitiesApplication',
+    operatingSystem: 'Any',
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'IDR' },
+    url: `${SITE?.site}/agent-tools-bagibon/`,
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    '@id': organizationId,
+    name: SITE?.name,
+    url: SITE?.site,
+    logo: new URL(favIconSvg.src, SITE?.site).toString(),
+  },
+];
+
+const faqs = [
+  {
+    title: 'Dataku dikirim ke server nggak?',
+    description:
+      'Nggak. Semua dihitung di HP/laptopmu sendiri pakai JavaScript — nggak ada akun, nggak ada server, nggak ada yang nyimpen bonmu selain browser-mu sendiri.',
+  },
+  {
+    title: 'Gimana cara bagi bon ke teman?',
+    description:
+      'Pencet "Salin tautan bon" — bonmu dikemas ke dalam tautan (?bon=...). Siapa pun yang buka tautan itu langsung lihat bon yang sama. Atau "Salin ringkasan WA" buat tempel ke grup chat.',
+  },
+  {
+    title: 'Pajak & service dihitungnya gimana?',
+    description:
+      'Proporsional: pajak dan service dibagi mengikuti porsi subtotal masing-masing orang. Yang makannya banyak, nanggungnya lebih besar. Isi persennya manual — Bu Bendahara nggak mau asal tebak.',
+  },
+  {
+    title: 'Riwayat bonku hilang pas ganti HP?',
+    description:
+      'Iya — riwayat tersimpan di localStorage perangkat ini saja. Mau pindah perangkat? Pakai "Unduh JSON" lalu "Impor JSON" di perangkat baru.',
+  },
+  {
+    title: 'Ada yang cuma pesan es teh, tetap patungan rata?',
+    description:
+      'Nggak dong — itu gunanya centang "siapa yang makan" di tiap item. Es teh cuma dibagi ke yang minum es teh. Adil, Bu Bendahara jamin.',
+  },
+];
+---
+
+<Layout metadata={metadata}>
+  <StructuredData slot="head" schema={structuredData} />
+
+  <!-- FX global -->
+  <svg class="grain" aria-hidden="true" focusable="false">
+    <filter id="bb-grain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
+    <rect width="100%" height="100%" filter="url(#bb-grain)" />
+  </svg>
+  <div class="spotlight" aria-hidden="true"></div>
+  <button type="button" class="motion-toggle" id="motion-toggle" aria-pressed="true">
+    <span class="mt-label">Gerak: nyala</span>
+  </button>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <main class="bagibon-main">
+    <!-- ===== Gerak A: pintu zoom-through "PATUNGAN" ===== -->
+    <div class="zoom-stage" aria-label="Sampul buku arisan">
+      <div class="zoom-pin">
+        <div class="zoom-inner" style="text-align:center;padding:0 1rem;">
+          <p class="bendahara" style="font-size:1.25rem;">buku arisan raksasa milik Bu Bendahara</p>
+          <h1 class="title-door" style="margin:.5rem 0;">PATUNGAN</h1>
+          <p class="bendahara warn" style="font-size:1.2rem;">tulis namanya dulu, jangan asal</p>
+          <p class="hint" style="margin-top:1rem;">
+            <Icon name="ph:arrow-down-bold" style="vertical-align:-0.15em;" /> scroll buat buka bukunya
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Gerak B: 2 pita diagonal ===== -->
+    <MarqueeBands id="marquee-atas" />
+
+    <!-- ===== Timeline 5 node ===== -->
+    <div class="section-pad">
+      <TimelineApp />
+    </div>
+
+    <Perforasi />
+
+    <MarqueeBands id="marquee-bawah" />
+
+    <!-- ===== FAQ (widget siap pakai) ===== -->
+    <div class="wrap section-pad">
+      <FAQs
+        title="Tanya Bu Bendahara"
+        subtitle="yang sering ditanyain soal bon ini"
+        items={faqs}
+        defaultOpen={0}
+      />
+    </div>
+  </main>
+
+  <footer class="wrap" style="padding-bottom:3rem;text-align:center;">
+    <Perforasi />
+    <p class="bendahara" style="font-size:1.3rem;margin-top:1.5rem;">
+      <BukuIcon class="inline" /> <span class="riso font-display" data-text="BagiBon — patungan bill makan bareng, adil per item." style="font-size:1.6rem;font-weight:700;">BagiBon — patungan bill makan bareng, adil per item.</span>
+    </p>
+    <p class="hint">100% client-side • tanpa akun • tanpa server • dibuat dengan tinta risograph</p>
+  </footer>
+
+  <div id="print-receipt" aria-hidden="true"></div>
+
+  <AppScript />
+</Layout>

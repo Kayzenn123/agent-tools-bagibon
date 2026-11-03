@@ -1,0 +1,33 @@
+---
+// Gerak B: 2 pita diagonal berlawanan arah + tombol jeda (aria).
+// Konten band diduplikasi 2x agar loop translateX(-50%) mulus.
+export interface Props {
+  id?: string;
+}
+const { id = 'marquee' } = Astro.props;
+
+const band1 = ['Rp12.500', 'Rp8.000', 'Rp15.000', 'Rp28.000', 'Rp5.000', 'Rp22.000', 'Rp10.000', 'Rp18.000'];
+const band2 = ['adil', 'patungan', 'lunas', 'tulis namanya', 'jangan asal', 'bagi rata', 'per item'];
+const chunk1 = band1.map((t) => `<span>${t}</span><span aria-hidden="true">•</span>`).join('');
+const chunk2 = band2.map((t) => `<span>${t}</span><span aria-hidden="true">•</span>`).join('');
+---
+
+<div class="marquee-zone" id={id}>
+  <div style="display:flex;justify-content:flex-end;max-width:72rem;margin:0 auto;padding:0 1rem;">
+    <button
+      type="button"
+      class="btn small ghost motion-pause"
+      aria-pressed="false"
+      aria-controls={`${id}-b1 ${id}-b2`}
+      aria-label="Jeda pita berjalan"
+    >
+      <span class="motion-pause-label">jeda pita</span>
+    </button>
+  </div>
+  <div class="marquee-band" id={`${id}-b1`} aria-hidden="true">
+    <div class="marquee-track"><Fragment set:html={chunk1} /><Fragment set:html={chunk1} /></div>
+  </div>
+  <div class="marquee-band band-2" id={`${id}-b2`} aria-hidden="true" style="margin-top:.75rem;">
+    <div class="marquee-track"><Fragment set:html={chunk2} /><Fragment set:html={chunk2} /></div>
+  </div>
+</div>

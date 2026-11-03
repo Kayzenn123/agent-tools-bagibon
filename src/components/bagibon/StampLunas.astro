@@ -1,0 +1,64 @@
+---
+// Stempel "LUNAS" — teks di path melingkar, tinta hijau pop.
+// Dibungkus <button> asli: svg aria-hidden agar tidak ada mismatch
+// label-content-name. Ketuk 5x = easter egg (ditangani AppScript).
+export interface Props {
+  id?: string;
+  class?: string;
+}
+const { id = 'stamp-lunas', class: cls = 'stamp' } = Astro.props;
+---
+
+<button
+  type="button"
+  id={id}
+  class="stamp-btn"
+  aria-live="polite"
+>
+  <span class="sr-only">Stempel LUNAS</span>
+  <svg class={cls} viewBox="0 0 200 200" aria-hidden="true" focusable="false">
+    <defs>
+      <path id="stamp-circle-path" d="M100,100 m-72,0 a72,72 0 1,1 144,0 a72,72 0 1,1 -144,0" fill="none" />
+    </defs>
+    <circle cx="100" cy="100" r="92" fill="none" stroke="var(--pop)" stroke-width="6" />
+    <circle cx="100" cy="100" r="58" fill="none" stroke="var(--pop)" stroke-width="4" />
+    <text
+      font-family="var(--font-caveat, 'Caveat', cursive)"
+      font-weight="700"
+      font-size="26"
+      fill="var(--pop)"
+      letter-spacing="6"
+    >
+      <textPath href="#stamp-circle-path" startOffset="0">
+        LUNAS • BAGIBON • LUNAS • BAGIBON •
+      </textPath>
+    </text>
+    <text
+      x="100" y="112"
+      text-anchor="middle"
+      font-family="var(--font-caveat, 'Caveat', cursive)"
+      font-weight="700"
+      font-size="44"
+      fill="var(--pop)"
+    >
+      LUNAS
+    </text>
+    <path d="M52 128 L148 128" stroke="var(--pop)" stroke-width="4" />
+    <path d="M60 140 L140 140" stroke="var(--pop)" stroke-width="3" />
+  </svg>
+</button>
+
+<style>
+  .stamp-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .stamp-btn:focus-visible {
+    outline: 3px solid var(--accent-2);
+    outline-offset: 4px;
+    border-radius: 9999px;
+  }
+</style>
